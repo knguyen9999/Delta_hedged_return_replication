@@ -1,7 +1,0 @@
-In "D:\Chris Jefferson Research\newsims\Simulation codes submit to JF\Stock options\Call" folder, run AllSim_Call_All and Stock_All
-In "D:\Chris Jefferson Research\newsims\Simulation codes submit to JF\Stock options\Put" folder, run AllSim_Put_All and Stock_All
-These codes produces the simulations results for stock options
-
-
-In "D:\Chris Jefferson Research\newsims\Simulation codes submit to JF\Index options" folder, run AllSim and AllSimMoney
-These codes produces the simulations results for index options

@@ -1,2 +1,0 @@
-First, run Makedata_sp500.sas ans Makedata_spx.sas
-Next, in each folder, run Batch.m
