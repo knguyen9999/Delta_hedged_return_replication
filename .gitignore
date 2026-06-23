@@ -1,0 +1,59 @@
+# ---------------------------------------------------------------------------
+# WHITELIST .gitignore for the Paper_replication project
+#
+# This folder contains ~300 GB of licensed data (OptionMetrics/IvyDB, CRSP)
+# and copyrighted papers that MUST NOT be uploaded to GitHub.
+#
+# Strategy: ignore EVERYTHING by default, then explicitly allow only the
+# source code and documentation. This guarantees no data file is ever
+# committed by accident.
+# ---------------------------------------------------------------------------
+
+# 1) Ignore everything
+*
+
+# 2) But still descend into subfolders (so allowed files below are found)
+!*/
+
+# 3) Allow source code and documentation
+!.gitignore
+!*.R
+!*.r
+!*.Rmd
+!*.qmd
+!*.md
+!*.csv
+!*.txt
+!*.py
+!*.do
+!*.sql
+
+# ---------------------------------------------------------------------------
+# 4) Safety net: re-ignore data / large / generated files even if one of the
+#    extensions above would otherwise catch them.
+# ---------------------------------------------------------------------------
+*.parquet
+*.duckdb
+*.duckdb.tmp
+*.duckdb.wal
+*.rds
+*.RData
+*.rda
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.html
+*.docx
+*.xlsx
+*.textClipping
+.DS_Store
+.Rapp.history
+.Rhistory
+.RData
+.Rproj.user/
+
+# Temp / scratch folders
+*.tmp/
+.tmp/
+**/duckdb_temp_*

@@ -1,0 +1,285 @@
+---
+title: "Delta_Hedged_Replication_Documentation"
+author: "Kai Nguyen"
+format: html
+editor: visual
+embed-resources: true
+---
+
+# Creating the Master S&P500 Index Data Frame for Testing
+
+## Goal
+
+Build a single, analysis-ready data frame for SPX options by merging OptionMetrics quotes with the underlying index close and a daily risk-free rate. This “master” is used to test replication code for delta-hedged returns.
+
+## Documents to Review
+
+*delta_hedged_db_database_building.R*
+
+*inner_vs_leftjoin.R*
+
+## Data ingest & database build: delta_hedged_db_database_building.R
+
+Create a reproducible DuckDB database for the delta-hedged-returns replication. We (i) ingest OptionMetrics IvyDB Parquet files for options and underlyings, (ii) load supporting IvyDB reference tables (security file, names, distributions), (iii) bring in CRSP daily stock files (DSF + master), (iv) fetch Fama–French daily risk-free rates, and (v) assemble an**SPX master**table that will feed the return calculations.
+
+**Inputs (local & remote).**
+
+-   IvyDB Parquet:
+
+    -   `Option_Price*.parquet`, `Security_Price*.parquet`
+
+    -   `Security_File_*.parquet`, `Security_Name_*.parquet`, `Distribution_File_*.parquet`
+
+-   CRSP Parquet:
+
+    -   `dsf_at2023.parquet`, `CRSP Data/Masterfiles/dse_at2023.parquet`, `…/dsenames_at2023.parquet`
+
+-   Fama–French daily factors (downloaded ZIP → CSV)
+
+**Outputs (DuckDB).**
+
+-   Materialized tables: `option_price`, `security_price`, `security_file`, `security_name`, `distribution_file`, `crsp_data`, `dse_file`, `dse_names_file`, `ff_rates`
+
+-   An SPX “master” lazy table `master_data_sp500` (joined view used for testing downstream code)
+
+**Performance & reproducibility.**\
+Arrow ➜ DuckDB materialization gives fast, SQL-friendly tables without re-reading Parquet on every run. Paths are hard-coded for clarity—adjust `setwd()` and file locations to your environment. The Fama–French step hits the network.
+
+## SPX500 Joining Method Consideration: inner_vs_leftjoin.R
+
+Before building the option “master” dataset for SPX (secid = 108105), this script checks whether we should keep**all option rows**even if the underlying close or risk-free rate is missing (`left_join`) or**only**keep rows with complete data (`inner_join`). Since delta-hedged returns require option + underlying (+ rf for bounds), we want evidence to justify the join choice.
+
+### What the script checks
+
+-   **Coverage of inputs**(Step 1): row counts, distinct dates, date ranges for:
+
+    -   `option_price`(SPX only),
+
+    -   `security_price`(SPX only),
+
+    -   `ff_rates`(all dates).
+
+-   **LEFT JOIN completeness**(Step 2): how many option rows have a matching underlying close and RF on the same date; how many are missing one or both.
+
+-   **INNER JOIN completeness**(Step 3): total rows after requiring matches on both joins.
+
+-   **Side-by-side comparison**(Step 4): total rows, complete rows, missing-data rows, and`% complete`under each strategy; also computes**rows lost**if you choose`inner_join`.
+
+-   **Missing-date forensics**(Step 5): which**dates**have options but**no underlying close**; which dates lack the**rf**match.
+
+-   **Data-quality snapshot**(Step 6): quick counts of missing Greeks, inverted quotes (bid ≥ ask), zero bids, negative volumes; percent with all Greeks present.
+
+-   **Recommendation**(Step 7): rules-of-thumb based on how much data an`inner_join`would discard.
+
+### How to read the outputs
+
+-   If `LEFT JOIN`and `INNER JOIN`totals are **identical**and `% complete = 100`, then coverage is perfect:**there’s no penalty**for using`inner_join`.\
+    *That’s what you observed, so choosing `inner_join`is justified.*
+
+-   If `rows_lost`is **small** (e.g., \< 5%), `inner_join`is still fine, and you can inspect the few missing dates (Step 5).
+
+-   If `rows_lost`is **material** (e.g., ≥ 10–15%), pause and investigate:
+
+    -   Are the missing dates holidays for the underlying but not options (or vice versa)?
+
+    -   Are there stale or duplicated keys on the right side that explode or drop rows?
+
+### My decision
+
+I went for the inner join since the output are not different between the two. Besides that, the row_lost is small (\<5%).
+
+# Cao & Han Filtering Criteria
+
+Review the file: *cao_han_paper.R*
+
+### Option Selection (Page 233, Section 2.1)
+
+The replication follows Cao & Han's methodology for selecting options:
+
+1.  **Maturity Selection** (Page 233): "At the end of each month and for each optionable stock, we collect a pair of options (one call and one put) that are closest to being at-the-money and have the shortest maturity among those with more than one month to expiration."
+
+    -   Code implementation: `days_to_maturity > 30` then `filter(days_to_maturity == min(days_to_maturity))`
+
+2.  **At-the-Money Selection** (Page 234): "options that are approximately at-the-money with a common short-term maturity"
+
+    -   Code implementation: `slice_min(atm_distance, n = 1, with_ties = FALSE)` where `atm_distance = abs(strike - stock_price)`
+
+### Data Quality Filters (Page 233, Section 2.1)
+
+The paper specifies several filters "to avoid microstructure-related bias":
+
+1.  **Liquidity Filters** (Page 233):
+
+    -   "positive trading volume" → `volume > 0`
+
+    -   "positive bid quotes, with the bid price strictly smaller than the ask price" → `best_bid > 0` and `best_bid < best_offer`
+
+    -   "midpoint of bid and ask quotes being at least \$1/8" → `mid_price >= 0.125`
+
+2.  **No-Arbitrage Bounds** (Page 233): "exclude all option observations that violate obvious no-arbitrage conditions such as S ≥ C ≥ max(0, S - K·e\^(-rT))"
+
+    -   Code implementation includes comprehensive bounds checking for both calls and puts
+
+3.  **Dividend Exclusion** (Page 233, footnote 5): "our main analyses use call options whose stocks do not have ex-dividend dates prior to option expiration"
+
+    -   Code filters out options with dividends during their life using the distribution_file
+
+4.  **European-Style Only**: While not explicitly stated in the filtering section, the paper focuses on European-style options for cleaner delta-hedging
+
+    -   Code implementation: `am_settlement == 0`
+
+# Duarte, Jones, and Wang Filtering Criteria
+
+Review the file: *duarte_jones_paper.R*
+
+### Data Filters (Page 8-10, Section I)
+
+The paper applies comprehensive filters to address measurement errors and microstructure biases:
+
+1.  **Basic Sample Requirements** (Page 9, footnote 5):
+
+    -   Midpoint price ≥ \$0.10 → `mid_price >= 0.10`
+
+    -   Relative bid-ask spread ≤ 50% → `spread_pct <= 0.50`
+
+    -   Positive open interest → `open_interest > 0`
+
+    -   Non-missing implied volatility → `!is.na(impl_volatility)`
+
+    -   Delta bounds: \|Δ\| ∈ \[0.01, 0.99\] → `abs(delta) >= 0.01 & abs(delta) <= 0.99`
+
+2.  **Maturity Range** (Page 8, footnote 4):
+
+    -   14 to 60 calendar days → `days_to_expiry >= 14, days_to_expiry <= 60`
+
+    -   This focuses on short-term options where delta-hedging is most relevant
+
+3.  **Valid Quote Requirements** (Page 9):
+
+    -   Bid \< Ask → `best_offer > best_bid`
+
+    -   Eliminates stub quotes and extreme price reversals (\~0.3% of sample)
+
+### Bias Adjustment Strategy (Page 21-23, Section II.C)
+
+The paper's key innovation is addressing four types of biases:
+
+1.  **Mean Return (MR) Bias**: Weight by lagged gross returns (fi,t-1/fi,t-2)
+
+2.  **Regression Coefficient (RC) Bias**: Use WLS with same weights
+
+3.  **Correlated Error in Variables (CEIV) Bias**: Use t-2 sorting variables
+
+4.  **Sample Selection (SS) Bias**: Apply filters at t-2 instead of t-1
+
+**Delta Fallback Strategy** (Page 23): When Δt-1 is missing:
+
+> delta_final = coalesce(lag1_delta, lag2_delta)
+
+### Considerations (Page 24)
+
+1.  **Deep OTM Options** (Page 24-25):
+
+    -   Main sample includes all options meeting basic filters
+
+    -   Robustness check excludes deep OTM: ΔC \> 0.15 and ΔP \< -0.05
+
+# Muravyev & Ni Filtering Criteria
+
+Review the file: *muravyev_ni_paper.R*
+
+### Option Selection Filters (Page 223)
+
+The paper applies strict filters to ensure data quality and avoid arbitrage violations:
+
+1.  **Quote Quality Requirements**:
+
+    -   Valid quotes: Bid \< Ask → `best_bid < best_offer`
+
+    -   Minimum bid price: \$0.50 → `best_bid >= 0.50`
+
+    -   Bid and ask must be available → `!is.na(best_bid) & !is.na(best_offer)`
+
+2.  **Spread Constraints**:
+
+    -   Maximum relative spread: 70% of midpoint → `spread_pct <= 0.70`
+
+    -   Maximum absolute spread: \$3.00 → `spread <= 3.00`
+
+3.  **Delta Requirements**:
+
+    -   Delta must be computable → `!is.na(delta)`
+
+    -   Delta range: \|Δ\| ∈ \[0.1, 0.9\] → `abs(delta) >= 0.1 & abs(delta) <= 0.9`
+
+    -   This excludes deep ITM/OTM options
+
+4.  **No-Arbitrage Bounds**:
+
+    -   Option price ≥ intrinsic value → `midpoint >= intrinsic_value`
+
+    -   Call bounds: max(S - K·e\^(-rT), 0) ≤ C ≤ S
+
+    -   Put bounds: max(K·e\^(-rT) - S, 0) ≤ P ≤ K·e\^(-rT)
+
+    -   Additional checks to ensure prices are sensible
+
+### Key Implementation Details
+
+1.  **Price Basis**: "Option returns that we compute are based on the midpoints" (Page 223)
+
+    -   Uses midpoint of bid-ask spread for option prices
+
+2.  **Hedging Frequency**: Paper mentions "hedge is revised five times a day, about every 80 min"
+
+    -   Code implements daily rebalancing for comparison to others.
+
+3.  **Extreme Return Filter**:
+
+    -   Removes \|return\| \> 1000% as likely data errors → `abs(delta_hedged_return) < 10`
+
+4.  **Aggregation Method** (Page 223):
+
+    -   First average by underlying and date
+
+    -   Then equally weighted average across stocks
+
+    -   Produces market-level statistics
+
+# Delta-Hedged Returns Analysis: Comparative Study of Three Methodologies
+
+![](images/clipboard-940340351.png){width="1228"}
+
+## Key Findings
+
+### Sample Size and Coverage
+
+The three methodologies produce dramatically different sample sizes despite using the same underlying S&P 500 index options data:
+
+-   **Cao-Han**: Most restrictive with only 35 calls and 188 puts
+
+-   **Noisy Prices**: Largest sample with 169,401 calls and 198,738 puts
+
+-   **Day/Night**: Moderate sample with 471,495 calls and 423,731 puts
+
+These differences reflect varying filtering criteria, with Cao-Han applying the most conservative filters (shortest maturity \> 30 days, closest to ATM), while Duarte-Jones includes a broader range of options with sophisticated bias adjustments.
+
+### Delta-Hedged Returns
+
+All three methodologies document **significantly negative delta-hedged returns**:
+
+#### Call Options:
+
+-   **Cao-Han**: -1.77% (t-stat: -7.04)
+
+-   **Duarte-Jones-Wang**: -0.87% (t-stat: -20.66)
+
+-   **Muravyev-Ni**: -0.87% (t-stat: -58.86)
+
+#### Put Options:
+
+-   **Cao-Han**: -3.35% (t-stat: -20.75)
+
+-   **Duarte-Jones-Wang**: -0.69% (t-stat: -16.94)
+
+-   **Muravyev-Ni**: -0.39% (t-stat: -24.77)

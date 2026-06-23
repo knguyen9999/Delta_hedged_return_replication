@@ -1,0 +1,407 @@
+---
+title: "Research_Delta_Hedged_Return"
+author: "Kai Nguyen"
+format: html
+editor: visual
+embed-resources: true
+---
+
+# "Cross section of option returns and idiosyncratic stock volatility" Summary and Notes 📝
+
+## Key findings of the paper from Cao
+
+-   Delta-hedged option returns decrease when the stock's idiosyncratic volatility (IVOL) increases.
+
+-   Simpler explanation:
+
+    -   If the stock is super unpredictable because that company has a lot of things going on with them, the returns from options on that stock are usually lower.
+
+    -   Even if I, per se, do all the right hedging technique to protect myself, I'll still likely make less money from those options.
+
+-   Options on stocks with high IVOL earn significantly lower delta-hedged returns than options on low IVOL stocks. This pattern holds for both call and put options. One of the result was mentioned is the strategy of buying delta-hedged calls on low IVOL stocks and selling those on high IVOL stocks can earn about 1.4% per month before considering significant transaction costs.
+
+-   The paper shows this finding is not explained by the standard risk factor, volatility risk premium, jump risk, volatility-related option mispricing like the overreaction to volatility changes or deviations between historical and implied volatility, or the known patterns in the cross-section of stock returns.
+
+## Notes along the way
+
+-   **Common time to maturity of stock options**: About 1 to 3 months. In this specific paper, they focus on the options with about 50 calendar days to maturity \~ 1.5 months (The most traded are usually those expiring in the next 30 to 60 days).
+
+-   The result reflects the premium charged by option dealers due to higher arbitrage costs in stocks with greater idiosyncratic volatility.
+
+-   Proxies of limits to arbitrage in the paper: Option demand pressure, option market illiquidity, underlying stock illiquidity, stock price level.
+
+-   Data: 1996-2009, options data source is from *OptionsMetrics* and stocks data source is *CRSP* and *Compustat.*
+
+-   Risk-Free Rate: Obtained from the 1-month Tresury bill rates.
+
+-   Fama-French factor returns and risk-free rates from Kenneth French's data library.
+
+-   Option criteria for selection:
+
+    -   At the end of each month, one call and one put option per stock are selected.
+
+    -   These are the closet to at-the-money (ATM) and have the shortest maturity among those with more than 1 month to expiration (50 days average). ATM. options are chosen as they are most sensitive to volatility changes.
+
+-   The paper also specifies the exclusion:
+
+    -   Options on stocks with ex-dividend dates before expiration, in simplier term, they exclude an option if the underlying stock paid a dividend during the remaning life of the option. The reason behind this is for US equity, if a dividend is large enough it can be rational to exercise early. Early-exercise risk would distort the call's embedded carry relative to puts. Moreover, it would make delta-hedging formulas built on European Black-Scholes deltas noisy, and contaminate the return calculation if some, but not all, calls are exercised mid-sample. Hence, dropping these avoids a dividend-timing confound.
+
+    -   Observations violate no-arbitrage conditions ( S \>= C \>= max(0, S - Ke^-rt^ ). The upper bound C \<= S call can never cost more than buying the share outright. The lower bound C \>= max(0, S - Ke^-rt^ ) is what a hedged portfolio could replicate for sure. It buys the call for C and sell a forward contract on the stock struck at K. If C were cheaper than that replicating strategy, arbitrageurs would buy the call and short the replicating portfolio until the mis-quote vanished.
+
+        -   The violation is this case almost always bad data because the high-frequency traders would pounce immediately. Real-world electronic markets rarely let a static-arbitrage gap persist for more than a blink. For example, suppose the stock close at S = \$50, but a mismatch timestamp between the option and stock price quote records the ATM call at C = \$0.10. The next morning the quote snaps back to \$2. ANy delta-hedged return that includes thatr observation will show a 20 times overnight profit, which completely unrealted to the economic limits to arbitrage effect the paper is trying to measure.
+
+    -   Options with zero trading volume, zero bid quotes, bid \>= ask, or midpoint quote \< \$1/8 to avoid microstructure bias.
+
+    -   Options whose maturity is longer than the majority of options selected that month.
+
+    -   Moneyness (S/K) outside 0.8 to 1.2. The reason is near the money options are the most liquid, sensitive to volatility, and easiest to delta-hedge with low hedge error/ Deep ITM/OTM contracts suffer wide spread, sparse trading, and very different risk exposures like carry or skew. Trimming to the 0.8-1.2 band focuses the test on comparable, high-quality price data.
+
+    -   The final sample averages options on 1514 stocks per month. These stocks tend to be larger and more followerd than the average CRSP stock, meaning results are not driven by small/neglected stocks.
+
+## Breaking down terminologies and revisit the concepts
+
+### Delta Δ
+
+-   Δ represents the rate of change between the option’s price and a \$1 change in the underlying asset’s price.
+
+-   The price sensitivity of the option relative to the underlying.
+
+-   Call option: 0 ≤ Δ ≤ 1
+
+-   Put option: 0 ≥ Δ ≥ -1
+
+-   Example: Assume an investor is long a call with a delta of 0.50; hence, if underlying increases by \$1, the option’s price would theoretically increase by 50 cents.
+
+### Delta-Hedged option return
+
+-   **Delta hedging**
+
+    -   Defensive tactic used to reduce the directional exposure of a stock or option position.
+
+    -   Accomplished by adding -delta or +delta to bring the position delta closer to zero.
+
+    -   I think of it like the helmet or protections that I wear when riding the motorbike. If I mess up and fall, those won’t stop the crash — but they’ll probably keep me from getting a one-way ticket to heaven.
+
+-   **Delta-hedged option return**
+
+    -   When buying option, you can hedge the price movements of the underlying stock using **delta hedging.**
+
+    -   **Delta-hedged return** = the profit/loss from holding the option while hedging out the stock's price movements.
+
+    -   In this research, it's a core dependent variable. It's the return of a portfolio that buys an option and delta-hedges it with the underlying stock.
+
+    -   The delta-hedge is rebalanced daily to maintain neutrality to stockj price movements. This isolates due to factors other than stock price changes, such as volatility.
+
+    -   The delta-hedged option gain is calculated and then scaled by the absolute value of the initial investment in securities involved to make returns comparable across stocks.
+
+### **Idiosyncratic volatility**
+
+-   The part of stock's volatility that is unique to that stock (not caused by the market overall). Aka what happens inside the company:
+
+    -   News about the company
+
+    -   Management decisions
+
+    -   Company specific earnings surprises
+
+-   In the research this is the primary independent variable. It's measured as the standard deviation of the residuals from the Fama-French three factor model, estimated using daily stock returns over the previous month. this captures the portion of a stock's volatility not explained by common market factors.
+
+-   Alternative measures are also tested, such as residuals from CAPM model using monthly returns, or EGARCH model forecasts.
+
+-   Systematic volatility (SysVOL): measures as sqrt(VOL^2^ - IVOL^2^ ), where VOL is the total stock volatility. this reflects the volatility component to market-wide movements.
+
+-   Total volatility (VOL): Standard deviation of daily stock returns over the previous month.
+
+-   Control variables: The study also includes a wide range of control variables in regressions to test the robustness of the IVOL effect
+
+    -   Volatility risk premium (VRP): Difference between realized variance (from intraday data) and model-free risk-neutral expected variance ( from options).
+
+    -   OVOL_deviation (Goyal & Saretto variable): Log difference between historical VOL and Black-Scholes implied volatility (IV) for ATM options, to control for misestimation of volatility dynamics.
+
+    -   Change in volatility (ΔVOL): Difference between current month's VOL and the previous 6 months' average, to control for overreaction to volatility changes.
+
+    -   Option implied skewness and kurtosis: Model-free measures derived from OTM option prices to control for jump risk.
+
+    -   Stock characteristics: Size (ME), book-to-market ratio (BE/ME), and \[ast stock returns over various horizons.
+
+## Methodology
+
+-   **Fama-MacBeth Regressions**:
+
+    -   The primary statistical method used to examine the cross-sectional relationship between delta-hedged option returns (dependent variable) and IVOL and other explanatory variables (independent variables).
+
+    -   Each month, a cross-sectional regression is run. The time-series average of the coefficients from these monthly regressions is then reported, along with t-statistics (often Newey-West adjusted for serial correlation) to assess statistical significance.
+
+-   Portfolio sorts:
+
+    -   Stocks are ranked into quintiles each month based on their IVOL (or other volatility measures).
+
+    -   The performance of portfolios formed based on these rankings is tracked. For example, a strategy might buy delta-hedged calls on the bottom IVOL quintile and sell delta-hedged calls on the top IVOL quintile.
+
+    -   Average portfolio returns are calculated using equal-weighting, stock-value-weighting, or option-value-weighting.
+
+    -   Double sorts are used to free the effects of IVOL and SysVOL by sorting on one variable first, then sorting within those quintiles by the other variable.
+
+-   Daily rebalancing: Delta-hedged portfolios are rebalanced daily to maintain delta neutrality. This is crucial because it ensures the portfolio's return is primarily driven by factors like volatility changes or mispricing, rather than the underlying stock's price direction.
+
+-   Transaction cost analysis: The paper considers the impact of option trading costs (bid-ask spreads) on the profitability of the IVOL-based trading strategy. They test different assumptions about the effective spread relative to the quoted spread.
+
+# Breaking down the formula
+
+From Cao and Han's paper:
+
+## 1. Delta-Hedged Option Gain
+
+![](images/clipboard-3217691612.png)
+
+Notation:
+
+-   C~t~ is the price of the call option at time t
+
+-   S(t~n~) is the price of the underlying stock at time t~n~
+
+-   Δ~C,tn~ is the call option delta at rebalancing time t~n~. Delta measures the rate of change of the option price with respect to changes in the underlying stock price.
+
+-   r~tn~ is the annualized risk-free rate at time t~n~
+
+-   a~n~ is the number of calendar days between rebalancing dates t~n~ and t~n+1~
+
+-   N is the number of rebalancing intervals during the period \[t, t+𝛕\]
+
+### Purpose of the formula:
+
+It is to calculate the profit/loss from holding and continuously adjusting a stock position to offset the option's price changes due to the stock's price changes.
+
+### Part 1: PnL
+
+![](images/clipboard-3981325532.png)
+
+-   The Delta-hedged profit and loss result.
+
+### Part 2: Change in option value
+
+![](images/clipboard-2764790435.png)
+
+-   So this is the option's final price when investor enter the position at t and then exit at t + 𝜏.
+
+-   Let's say at the time I exit position, the difference is positive; hence, I gain on the option itself before accounting for the hedging costs.
+
+### Part 3: Gain or Losses from the underlying stock
+
+![](images/clipboard-4070205715.png)
+
+-   This part is kinda short the change in shares of the underlying stock to offset the option's price sensitivity to small stock price changes.
+
+-   So the mechanic of this is basically trying to offset the call option in part 2, where if the prices go up then investor lose short position in this part.
+
+-   At each step t~n~, the hedge ration is Δ~C,tn~. We then add up the daily gains/losses across the entire holding period from n = 0 to N - 1.
+
+### Part 4: Interest on the Net Cash Position
+
+![](images/clipboard-270045399.png)
+
+-   This part is basically to find out the net cash position at the date t~n~. I hold the call option and short Δ~C,tn~ shares of the stock. This net initial cash indicates that I'm earning interest if it's positive and paying interest if negative.
+
+-   This interest earned has to be annualized, that's when the r~tn~\* a~n~/365 tells how much interest accures between t~n~ and t~n+1~.
+
+## Putting together
+
+-   So the entire process starts at ***t**.* At this time, I buy the call at C~t~, short Δ~C,tn~ shares.
+
+-   Then, I need to rebalance for each trading day t~n~, update Δ~C,tn~ to match the call's new delta.
+
+-   At the time I exist, t + 𝝉, I sell the call or let it expire.
+
+-   Now I look back and add the net change in call's price, the gain/losses from the short-stock position (daily intervals in this case), and the interest paid/get on any net cash.
+
+-   The final amount I get is P(t, t + 𝜏), which is the total real-world PnL from executing and maintaining a delta hedged call strategy over 𝜏 days.
+
+## Connecting this to the concept in J.C.Hull's Book
+
+-   The concept of rebalancing was introduced in the book because delta of an option does not remain constant. The trader's position remains delta hedged for only a relatively short period of time. Hence, the hedge has to be adjusted periodically. An example i can think of is when the delta of a stock rises from 0.5 to 0.55, that 0.05 increase has to be multiplied with the original shares options you bought, for example 1000, meaning 0.05\*1000 = 50 shares has to be bought to maintain the hedge. In other word, this is called dynamic hedging that's contrast with static hedging where the hedge is set up and never adjusted.
+
+## 2. IVOL and SysVOL
+
+### IVOL: Concept reminder from [Investopedia](https://www.investopedia.com/terms/f/famaandfrenchthreefactormodel.asp)
+
+### SysVOL:
+
+-   SysVOL = sqrt(VOL~i~^2^ - IVOL~i~^2^) where VOL~i~ is the total volatility of stock i (standard deviation of its daily returns).
+
+## 3. Volatility Risk Premium
+
+Defined for stock i in month t as:
+
+![](images/clipboard-3907947791.png)
+
+-   RV~i,t~: Realized Variance over month t, computed from high-frequency (e.g 15 min) intraday stock returns p~j~^i^.
+
+-   IV~i,t~ Risk-neutral Expected Variance (often called implied variance) extracted from a cross-section of option prices on the last trading day of month t, typically for a one-month horizon. It's a model-free measure derived using an integral of out-of the money call (or put) prices across different strike prices K:
+
+    ![](images/clipboard-530930815.png)
+
+-   Here, B(t,t+1) is the price of a zero coupon bond maturing at t+1. This integral is evaluated numerically using available option strike prices.
+
+## 4. Risk-Neutral Skewness and Kurtosis
+
+The paper uses model-free measures from Bakshi, Kapadia, and Madan (2003). These involve calculating intermediate terms V(t,𝜏), W(t,𝜏), and X(t,𝜏), which are weighted sums (integrals approximated numerically) of OTM call and put option prices across different strikes.
+
+-   μ(t,𝜏): Expected return under risk-neutral measure.
+-   V(t,𝜏): Corresponds to the risk-neutral variance.
+-   W(t,𝜏): Corresponds to the third central moment (related to skewness).
+-   X(t,𝜏): Corresponds to the fourth central moment (related to kurtosis).
+
+The risk-neutral skewness is then:
+
+![](images/clipboard-1737449217.png)
+
+A similar formula is used for kurtosis. These measures capture market expectations about the asymmetry and tail-fatness of the underlying stock's future return distribution.
+
+## Delta Hedging Simple Calculation
+
+We assume the following for a call option:
+
+-   Day 0 stock price (S~0~): \$100
+
+-   Strike price (K) - at the money: \$100
+
+-   Initial time to maturity (T): 50 days
+
+-   Volatility (σ) -per year: 30%
+
+-   Hedging period (daily rebalancing): 5 days
+
+I'll use the Black-Scholes model as mentioned in the research from Cao & Han to find the option price and delta each day. Black-Scholes Equation retrieved from [OptionTrading](https://www.optiontradingtips.com/pricing/black-and-scholes.html).
+
+![](images/clipboard-1436080908.png)
+
+I also make up the stock price path for the calculation.
+
+```{r inputs}
+
+price_path = c(100,101,99,102,103,100) #simple price changes of uderlying stock
+days_left    <- seq(50, 45, by = -1) #time to maturity
+strike_price = 100
+sigma = 0.3
+rf_rate = 0.01
+contract_size = 100 #1 option contract
+```
+
+Create the function for Black-Scholes model.
+
+```{r Black_Scholes_function}
+Black_Scholes_Call <- function(S, K, r, sigma, Time){
+  d1 <- (log(S/K) + (r + 0.5*sigma^2)*Time) / (sigma*sqrt(Time))
+  d2 <- d1 - sigma*sqrt(Time)
+  price <- S*pnorm(d1) - K*exp(-r*Time)*pnorm(d2)
+  delta <- pnorm(d1)
+  c(price = price, delta = delta)
+}
+```
+
+```{r}
+#| echo: false
+#| warning: false
+library(dplyr)
+library(tibble)
+```
+
+```{r day-by-day_table}
+
+tbl <- tibble(
+  day       = 0:5,
+  S         = price_path,
+  days_left = days_left,
+  maturity  = days_left / 365
+) |> 
+  rowwise() |> 
+  mutate({
+    bs  <- Black_Scholes_Call(S, strike_price, rf_rate, sigma, maturity)
+    C   <- bs["price"]
+    dlt <- bs["delta"]
+    tibble(
+      C           = C,
+      delta_calc  = dlt,
+      shares      = contract_sz * dlt,
+      C_minus_dltS  = C - dlt * S
+    )
+  }) |> 
+  ungroup()
+```
+
+```{r}
+tbl |> mutate(across(where(is.numeric), ~ round(.x,4)))
+```
+
+```{r}
+tbl <- tbl |>
+  mutate(
+    dS        = lead(S) - S,
+    dC        = lead(C) - C,
+    pnl_stock = -delta_calc * dS               #  −Δ · ΔS
+  )
+
+stock_pnl   <- sum(tbl$pnl_stock, na.rm = TRUE)
+option_pnl  <- tail(tbl$C, 1) - tbl$C[1]
+interest    <- sum((rf_rate/365) * tbl$C_minus_dltS[-nrow(tbl)])
+
+Pi          <- option_pnl + stock_pnl + interest               # hedged gain
+scaling     <- abs(tbl$delta_calc[1] * tbl$S[1] - tbl$C[1])    # |Δ₀S₀ − C₀|
+dh_return   <- Pi / scaling
+
+cat("\n--- Results ---\n")
+cat("Simple option return :", round(option_pnl / tbl$C[1] * 100, 2), "%\n")
+cat("Delta-hedged return  :", round(dh_return  * 100, 3), "%\n")
+cat("Dollar Π per contract:", round(Pi * contract_sz, 2), "\n")
+```
+
+# "Very Noisy Option Prices and Inference Regarding the Volatility Risk Premium" Summary and Notes 📝
+
+-   The paper stated that the calls and puts have negative mean returns. Delta-hedged index options exhibit even larger negative returns because index options have larger vega exposures.
+
+![](images/paste-1.png)
+
+-   According to the paper, the left hand side of this equation is exactly the delta-hedged return.
+
+-   From left to right, the R~f,i,t~ is the option excess, minus the definition of beta in equation 1 and times the stock excess. The equation 1 is below:\
+    ![](images/paste-2.png)
+
+-   The biggest difference between this paper's method of filtering from Cao and Han would be:
+
+    -   They do not account for the dividends payout and focus solely on SP500 and its index.
+
+    -   In their filtering process they actually filter the maturity 10-44 trading days for the options.
+
+    -   If the prior-day delta is missing, the date will be replaced with t-2 for option price f. In other word, the delta is always must have.
+
+    -   They do require the relative spread \<= 50%, which is not mentioned in Cao and Han paper.
+
+-   The delta-hedged return was computed each day. They have he option’s simple excess return and subtract the stock’s simple excess return multiplied by the shares you would have shorted yesterday to be locally delta-neutral. Take the option’s close-to-close mid-quote change (bid+ask over 2) minus the daily risk-free; take the stock’s close-to-close change minus the daily risk-free; scale that stock excess move by yesterday’s hedge ratio. If yesterday’s delta is missing, they fallback to the delta from two days ago; prices never fallback—returns always use t-1 prices. They also apply somewhat similar filtering from Cao and Han with some twist and change.
+
+# "Why do option returns change sign from day to night" Summary and Notes 📝
+
+-   In this paper, the delta-hedged return is built from the simple self-financing one-day P&L on a long option hedged with stock.
+
+![](images/paste-3.png)
+
+-   The key of this paper's design was the time-of-day resolution. The author split returns into open to close (intraday) and close to open (overnight).
+
+-   They rebalance the hedge several times intraday, roughly every 80 minutes.
+
+-   Contract-level day/overnight returns are averaged to the stock level and then equal-weighted across stocks (for an index like SPX this reduces to the single aggregate). Because the horizon is one day, they treat these as option returns rather than excess returns over cash. 
+
+-   M & N use strict filters—like requiring a minimum bid and limiting how wide the bid-ask spread can be—to cut out noisy or bad quotes in intraday data. That way, the options they keep are liquid and behave well enough for frequent re-hedging. They also leave out the daily risk-free rate because over a single day it barely matters. Skipping it lets them focus on the part of returns driven by volatility, which is the core of their “volatility bias” idea.
+
+-   Unlike this paper, C&H look across many different stocks to see how option returns relate to each stock’s own special (idiosyncratic) volatility. They only keep at-the-money options with short time to expiration. They also drop options that aren’t really trading—those with zero volume, zero open interest, or very low average prices—so they focus on liquid, active contracts. When they calculate the delta-hedged payoff, they also account for the risk-free interest on the cash part of the position. That turns their measure into an “excess return,” which makes it easier to spot broad, systematic patterns driven by risk factors or market frictions.
+
+Impact of gamma
+
++1 and -1 OTM and ITM
+
+Pick a date to make the series for options
+
+focus on murav and ni
+
+duarte and wang
+
+atm vs otm and itm
