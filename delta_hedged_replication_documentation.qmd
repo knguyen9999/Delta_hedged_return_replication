@@ -283,3 +283,57 @@ All three methodologies document **significantly negative delta-hedged returns*
 -   **Duarte-Jones-Wang**: -0.69% (t-stat: -16.94)
 
 -   **Muravyev-Ni**: -0.39% (t-stat: -24.77)
+
+## A Note on the t-Statistics: Sample Size and Standard Errors
+
+The t-statistics above span a wide range (from roughly −7 to −59), and the
+largest magnitudes deserve a careful interpretation rather than being read at
+face value.
+
+### The sign is the economic result
+
+A **negative** delta-hedged return is the central finding of all three papers,
+not an anomaly in the replication: a delta-neutral long-option position loses
+money on average, implying that option buyers systematically overpay (and
+writers earn a premium). The consistency of the negative sign across three very
+different methodologies is the headline takeaway.
+
+### Why the magnitudes differ so much
+
+A t-statistic equals $\text{mean} / (\text{sd}/\sqrt{n})$ and therefore scales
+with $\sqrt{n}$. The three methods differ in sample size by four orders of
+magnitude — Cao-Han retains a few hundred contracts, while Muravyev-Ni retains
+~470,000 option-day observations. Almost all of the difference in t-statistics
+is mechanical: with hundreds of thousands of observations, even an economically
+small mean (e.g. −0.87%) becomes "astronomically significant." A large $|t|$
+here reflects a large $n$, **not** a large effect.
+
+### The independence problem and the fix
+
+A plain `t.test` (equivalently, $\text{mean}/(\text{sd}/\sqrt{n})$) assumes every
+observation is independent. Delta-hedged returns on an option-day panel are not:
+the same option is observed on many consecutive dates (time-series correlation),
+and many options are observed on the same date (cross-sectional correlation).
+This understates the true standard error and inflates $|t|$.
+
+To address this, the Duarte-Jones-Wang and Muravyev-Ni scripts report
+t-statistics computed from standard errors **double-clustered by both `optionid`
+and `date`** (Petersen 2009; Cameron, Gelbach & Miller 2011), implemented with
+`sandwich::vcovCL(model, cluster = ~ optionid + date)`. This is the defensible
+choice for this data structure and produces more conservative (smaller in
+magnitude) t-statistics than the naive formula. The qualitative conclusion —
+significantly negative delta-hedged returns — survives the correction.
+
+For the smaller Cao-Han sample, observations are effectively one per
+option-month and far closer to independent, so a conventional `t.test` is
+appropriate there.
+
+### Caveat and further robustness
+
+Even double-clustered standard errors are an approximation. The original papers
+go further — Cao-Han work with monthly cross-sections, and the standard
+robustness tools in this literature are **Fama-MacBeth** estimation and
+**Newey-West** (HAC) standard errors to handle overlap and autocorrelation.
+Applying those would shrink the very large t-statistics further; the effects are
+expected to remain statistically significant but should be reported with
+appropriately conservative inference rather than the raw large-sample values.

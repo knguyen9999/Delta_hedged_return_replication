@@ -175,7 +175,14 @@ print(paste("Total observations with returns:", nrow(base_returns)))
 
 returns_all <- base_returns
 
-#Function for clustered standard errors
+#Function for clustered standard errors.
+# Delta-hedged returns are NOT independent: the same option appears on many
+# dates (time-series correlation) and many options share the same date
+# (cross-sectional correlation). A naive t = mean / (sd / sqrt(n)) assumes
+# independence and badly understates the standard error, inflating |t| as n
+# grows. We therefore report t-stats from standard errors DOUBLE-CLUSTERED by
+# both optionid and date (Cameron-Gelbach-Miller / Petersen), the defensible
+# choice for an option-day panel.
 calc_clustered_stats <- function(data, return_col = "delta_hedged_return_pct") {
   if(nrow(data) < 10) {
     return(tibble(
@@ -184,13 +191,19 @@ calc_clustered_stats <- function(data, return_col = "delta_hedged_return_pct") {
       se_clustered = NA_real_
     ))
   }
-  
+
   tryCatch({
     formula_str <- paste(return_col, "~ 1")
     model <- lm(as.formula(formula_str), data = data)
-    vcov_cluster <- vcovCL(model, cluster = ~ optionid)
+    # Two-way cluster-robust covariance: by optionid AND by date.
+    # Falls back to one-way (optionid) if date has too few distinct values.
+    vcov_cluster <- if (dplyr::n_distinct(data$date) > 1) {
+      sandwich::vcovCL(model, cluster = ~ optionid + date)
+    } else {
+      sandwich::vcovCL(model, cluster = ~ optionid)
+    }
     coef_test <- coeftest(model, vcov = vcov_cluster)
-    
+
     tibble(
       t_stat_clustered = coef_test[1, "t value"],
       p_value_clustered = coef_test[1, "Pr(>|t|)"],
@@ -272,7 +285,7 @@ returns_midpoint <- base_returns |>
   slice(1) |>  # Keep only closest to midpoint
   ungroup()
 
-#Calculate statistics (no clustering needed - independent obs)
+#Calculate statistics with double-clustered SEs (consistent across methods)
 stats_midpoint_maturity <- returns_midpoint |>
   group_by(maturity_bucket, cp_flag) |>
   summarise(
@@ -283,11 +296,15 @@ stats_midpoint_maturity <- returns_midpoint |>
     std_return = sd(delta_hedged_return_pct, na.rm = TRUE),
     pct_positive = mean(delta_hedged_return > 0, na.rm = TRUE) * 100,
     mean_deleveraged = mean(deleveraged_return_pct, na.rm = TRUE),
-    t_stat_clustered = mean_return / (std_return / sqrt(n())),
-    p_value_clustered = 2 * pt(-abs(t_stat_clustered), df = n() - 1),
+    data = list(cur_data()),
     .groups = "drop"
   ) |>
-  mutate(method = "Midpoint")
+  mutate(
+    clustered = map(data, calc_clustered_stats),
+    method = "Midpoint"
+  ) |>
+  unnest(clustered) |>
+  select(-data)
 
 stats_midpoint_moneyness <- returns_midpoint |>
   group_by(moneyness_bucket, cp_flag) |>
@@ -299,11 +316,15 @@ stats_midpoint_moneyness <- returns_midpoint |>
     std_return = sd(delta_hedged_return_pct, na.rm = TRUE),
     pct_positive = mean(delta_hedged_return > 0, na.rm = TRUE) * 100,
     mean_deleveraged = mean(deleveraged_return_pct, na.rm = TRUE),
-    t_stat_clustered = mean_return / (std_return / sqrt(n())),
-    p_value_clustered = 2 * pt(-abs(t_stat_clustered), df = n() - 1),
+    data = list(cur_data()),
     .groups = "drop"
   ) |>
-  mutate(method = "Midpoint")
+  mutate(
+    clustered = map(data, calc_clustered_stats),
+    method = "Midpoint"
+  ) |>
+  unnest(clustered) |>
+  select(-data)
 
 print(paste("Midpoint observations:", nrow(returns_midpoint)))
 
@@ -318,7 +339,7 @@ returns_random <- base_returns |>
   sample_n(1) |>  # Random observation per option-bucket
   ungroup()
 
-# Calculate statistics
+# Calculate statistics with double-clustered SEs (consistent across methods)
 stats_random_maturity <- returns_random |>
   group_by(maturity_bucket, cp_flag) |>
   summarise(
@@ -329,11 +350,15 @@ stats_random_maturity <- returns_random |>
     std_return = sd(delta_hedged_return_pct, na.rm = TRUE),
     pct_positive = mean(delta_hedged_return > 0, na.rm = TRUE) * 100,
     mean_deleveraged = mean(deleveraged_return_pct, na.rm = TRUE),
-    t_stat_clustered = mean_return / (std_return / sqrt(n())),
-    p_value_clustered = 2 * pt(-abs(t_stat_clustered), df = n() - 1),
+    data = list(cur_data()),
     .groups = "drop"
   ) |>
-  mutate(method = "Random")
+  mutate(
+    clustered = map(data, calc_clustered_stats),
+    method = "Random"
+  ) |>
+  unnest(clustered) |>
+  select(-data)
 
 stats_random_moneyness <- returns_random |>
   group_by(moneyness_bucket, cp_flag) |>
@@ -345,11 +370,15 @@ stats_random_moneyness <- returns_random |>
     std_return = sd(delta_hedged_return_pct, na.rm = TRUE),
     pct_positive = mean(delta_hedged_return > 0, na.rm = TRUE) * 100,
     mean_deleveraged = mean(deleveraged_return_pct, na.rm = TRUE),
-    t_stat_clustered = mean_return / (std_return / sqrt(n())),
-    p_value_clustered = 2 * pt(-abs(t_stat_clustered), df = n() - 1),
+    data = list(cur_data()),
     .groups = "drop"
   ) |>
-  mutate(method = "Random")
+  mutate(
+    clustered = map(data, calc_clustered_stats),
+    method = "Random"
+  ) |>
+  unnest(clustered) |>
+  select(-data)
 
 print(paste("Random observations:", nrow(returns_random)))
 
